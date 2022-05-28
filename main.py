@@ -2,23 +2,24 @@
 # -*- coding: utf-8 -*-
 # Python version: 3.6
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import copy
-import numpy as np
-from torchvision import datasets, transforms
-import torch
 import os
 
-from utils.sampling import mnist_iid, mnist_noniid, cifar_iid,cifar_noniid
-from utils.options import args_parser
-from models.Update import LocalUpdate
-from models.Nets import MLP, CNNMnist, CNNCifar, CNNFemnist, CharLSTM
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torchvision import datasets, transforms
+
 from models.Fed import FedAvg
+from models.Nets import MLP, CNNMnist, CNNCifar, CNNFemnist, CharLSTM
+from models.Update import LocalUpdate
 from models.test import test_img
 from utils.dataset import FEMNIST, ShakeSpeare
+from utils.options import args_parser
+from utils.sampling import mnist_iid, mnist_noniid, cifar_iid, cifar_noniid
 
+matplotlib.use('Agg')
 
 if __name__ == '__main__':
     # parse args
@@ -42,7 +43,7 @@ if __name__ == '__main__':
         else:
             dict_users = mnist_noniid(dataset_train, args.num_users)
     elif args.dataset == 'cifar':
-        #trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        # trans_cifar = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         args.num_channels = 3
         trans_cifar_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -65,8 +66,8 @@ if __name__ == '__main__':
         trans_fashion_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
         dataset_train = datasets.FashionMNIST('./data/fashion-mnist', train=True, download=True,
                                               transform=trans_fashion_mnist)
-        dataset_test  = datasets.FashionMNIST('./data/fashion-mnist', train=False, download=True,
-                                              transform=trans_fashion_mnist)
+        dataset_test = datasets.FashionMNIST('./data/fashion-mnist', train=False, download=True,
+                                             transform=trans_fashion_mnist)
         if args.iid:
             dict_users = mnist_iid(dataset_train, args.num_users)
         else:
@@ -127,11 +128,11 @@ if __name__ == '__main__':
     # training
     acc_test = []
     learning_rate = [args.lr for i in range(args.num_users)]
-    for iter in range(args.epochs):
+    for epoch in range(args.epochs):
         w_locals, loss_locals = [], []
         m = max(int(args.frac * args.num_users), 1)
         idxs_users = np.random.choice(range(args.num_users), m, replace=False)
-        begin_index = iter % (1 / args.frac)
+        begin_index = epoch % (1 / args.frac)
         idxs_clients = all_clients[int(begin_index * args.num_users * args.frac):
                                    int((begin_index + 1) * args.num_users * args.frac)]
         for idx in idxs_users:
@@ -139,7 +140,7 @@ if __name__ == '__main__':
             local = LocalUpdate(args=args, dataset=dataset_train, idxs=dict_users[idx],
                                 dp_epsilon=dp_epsilon, dp_delta=dp_delta,
                                 dp_mechanism=dp_mechanism, dp_clip=dp_clip)
-            w, loss, curLR = local.train(net=copy.deepcopy(net_glob).to(args.device))
+            w, loss, curLR = local.train(student=copy.deepcopy(net_glob).to(args.device))
             learning_rate[idx] = curLR
             w_locals.append(copy.deepcopy(w))
             loss_locals.append(copy.deepcopy(loss))
@@ -152,7 +153,7 @@ if __name__ == '__main__':
         # print accuracy
         net_glob.eval()
         acc_t, loss_t = test_img(net_glob, dataset_test, args)
-        print("Round {:3d},Testing accuracy: {:.2f}".format(iter, acc_t))
+        print("Round {:3d},Testing accuracy: {:.2f}".format(epoch, acc_t))
 
         acc_test.append(acc_t.item())
 
@@ -175,6 +176,3 @@ if __name__ == '__main__':
     plt.ylabel('test accuracy')
     plt.savefig(rootpath + '/fed_{}_{}_{}_C{}_iid{}_dp_{}_epsilon_{}_acc.png'.format(
         args.dataset, args.model, args.epochs, args.frac, args.iid, args.dp_mechanism, args.dp_epsilon))
-
-
-
